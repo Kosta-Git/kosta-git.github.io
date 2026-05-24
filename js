@@ -1,1 +1,0 @@
-../ksvr-blog/ksvr/public/js

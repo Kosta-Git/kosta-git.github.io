@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Technology on Ksvr</title>
+    <link>https://kosta-git.github.io/tags/technology/</link>
+    <description>Recent content in Technology on Ksvr</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Mon, 01 Dec 2025 19:04:03 +0000</lastBuildDate><atom:link href="https://kosta-git.github.io/tags/technology/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>// Make sure to be interested in states before reading</title>
+      <link>https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/</link>
+      <pubDate>Mon, 01 Dec 2025 19:04:03 +0000</pubDate>
+      
+      <guid>https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/</guid>
+      <description>&lt;p&gt;Warning: This article is a bit different from my previous ones as it requires the reader to have some programming experience.&lt;/p&gt;
+&lt;p&gt;Allow me to start with a question: have you ever seen or written such a comment?&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;// Make sure to use `is_valid()` before 
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Or perhaps a slightly different version&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;Exception(...) Cannot do X in state: Y
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;You probably have plenty of memories of forgetting to do some kind of ceremony before calling a function, maybe even asking a colleague if some function was safe to call at some point.&lt;/p&gt;
+&lt;p&gt;This class of issues can even be hidden into more complex business flows with multiple layers of indirection, enabling some invalid paths to be taken, causing critical business logic issues.&lt;/p&gt;
+&lt;h3 id=&#34;creating-an-order&#34;&gt;Creating an order &lt;a href=&#34;#creating-an-order&#34; class=&#34;anchor&#34;&gt;🔗&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;We have received requirements to build an order system. We should have the following states: draft, validated, payment pending, paid, and cancelled. Our clients have asked that we should not be able to cancel an order in payment, or if it was paid. Let&amp;rsquo;s get to work, first we&amp;rsquo;ll define our states as an enum, and create an Order struct to hold our data!&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-2.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-6.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;We created an enumeration of our states and a structure to represent our order, the next step is to implement our logic.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-7.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;For the sake of the snippet not being too long, the code is rather naive; any getter/setter code is omitted. However, it should be sufficient to understand the issues at stake. One could add a check for state at the start of each function and an exception saying, “Cannot do X in state Y”.&lt;/p&gt;
+&lt;p&gt;In our example, the user has to handle all the cognitive load of which function he can call, which action has to be done next, and also has to satisfy preconditions all on his own. In our case the code is rather simple, but for large business workflows, sagas, etc… This gets complicated quickly, and will often end up with a runtime exception.&lt;/p&gt;
+&lt;p&gt;This kind of code will also slow down handovers, or junior members of the team. To see just how bad this can get, look at what the compiler happily accepts:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-10.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;This feels quite odd, as we do have all the requirements, and we know which actions to take in which states. Wouldn&amp;rsquo;t it be nice if we could somehow encode this information and guide the user? Or even better, prevent him from making a mistake altogether! So how do we fix this?&lt;/p&gt;
+&lt;h3 id=&#34;type-state-encoding&#34;&gt;Type state encoding &lt;a href=&#34;#type-state-encoding&#34; class=&#34;anchor&#34;&gt;🔗&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;Let me show you how to encode your order flow in types. Examples are in Rust but you can achieve the same result in most modern programming languages; for example, since Java 17, sealed interfaces can allow you to achieve the same result.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-18.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;First we create our different states, and then we will create a struct order, which can act as an order of a given state. You can read more about PhantomData in the &lt;a href=&#34;https://doc.rust-lang.org/std/marker/struct.PhantomData.html&#34;&gt;Rust documentation&lt;/a&gt;. The equivalent in Java would be to create an interface order and then extend it on draft, validated, payment pending, paid, and cancelled.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-17.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;This is our draft state implementation. We allow the users to create a draft order, and we allow them to either validate, which here doesn&amp;rsquo;t do much but compute the price and, most importantly, returns an Order&amp;lt;Validated&amp;gt;. The other option is to cancel the order, which returns an Order&amp;lt;Cancelled&amp;gt;.&lt;/p&gt;
+&lt;p&gt;I would like to point out to the reader who is not familiar with Rust that the &lt;em&gt;&lt;strong&gt;fn xxx(self)&lt;/strong&gt;&lt;/em&gt; will take ownership, which is a Rust term meaning that the caller won&amp;rsquo;t be able to use the object anymore. This ensures us that once the order is cancelled, we won&amp;rsquo;t be able to use an old reference and validate it. Here is a demonstration.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-22.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;The compiler catches this mistake for us:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-23.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;Now let&amp;rsquo;s implement the validated state:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-25.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;We would rather not allow anyone to create an order that is already validated, so we just omit any new function. Furthermore, we only want to allow the user to request payment and to cancel the order.&lt;/p&gt;
+&lt;p&gt;The last step is payment pending, which only has to mark the order as paid.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-27.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;We are done, as we don&amp;rsquo;t have anything to do if the order is done or cancelled. That was a bit of work, but now let&amp;rsquo;s see what we achieved!&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-28.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;After creating an order, your IDE can help you with what is possible, and you can only perform valid actions. Any non-valid action is not possible, as the function does not exist to perform it.&lt;/p&gt;
+&lt;p&gt;Here is our happy flow in action&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://kosta-git.github.io/posts/make-sure-to-be-interested-in-states-before-reading/images/image-30.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;Pretty neat, right? The compiler now enforces our business rules, and the IDE provides us guidance for free. Let&amp;rsquo;s see if we can solidify our knowledge!&lt;/p&gt;
+&lt;h3 id=&#34;going-further&#34;&gt;Going further &lt;a href=&#34;#going-further&#34; class=&#34;anchor&#34;&gt;🔗&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;Now that you have seen type states in action, it&amp;rsquo;s time for you to try it by yourself!&lt;/p&gt;
+&lt;p&gt;Add a &lt;em&gt;&lt;strong&gt;payment_failed&lt;/strong&gt;&lt;/em&gt; function.&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Transition back to payment pending.&lt;/li&gt;
+&lt;li&gt;Create a new payment failed state.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;After implementing both, see how it affects your state graph and how each approach could be useful.&lt;/p&gt;
+&lt;p&gt;You can also try to add a maximum failure count.&lt;/p&gt;
+&lt;h3 id=&#34;conclusion&#34;&gt;Conclusion &lt;a href=&#34;#conclusion&#34; class=&#34;anchor&#34;&gt;🔗&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;The type state pattern is a powerful and versatile tool that allows you to keep the complexity inside the code instead of in comments or the maintainers&amp;rsquo; brains! It does come at the cost of some boilerplate, but I think it&amp;rsquo;s well worth it.&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>
